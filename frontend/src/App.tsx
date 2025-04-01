@@ -26,6 +26,10 @@ const App: React.FC = () => {
     setConnectionStatus('connecting');
     console.log('Attempting to connect WebSocket...');
     
+    // Add more debugging information
+    console.log('Environment:', import.meta.env.PROD ? 'Production' : 'Development');
+    console.log('VITE_BACKEND_URL:', import.meta.env.VITE_BACKEND_URL);
+    
     // Modificar la URL del WebSocket para incluir la ruta correcta
     const wsUrl = import.meta.env.PROD 
       ? `wss://${import.meta.env.VITE_BACKEND_URL.replace(/^https?:\/\//, '')}/ws/transcribe` 
