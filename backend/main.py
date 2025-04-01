@@ -313,9 +313,14 @@ async def generate_analysis(text):
         logger.exception("Detalle del error:")
         return {"error": str(e), "texto_completo": text}
 
+# Add this near your other route definitions
+
 @app.get("/")
-async def read_root():
-    return {"message": "API de Transcripción en Tiempo Real con FastAPI y Deepgram. Conéctate vía WebSocket a /ws/transcribe"}
+async def root():
+    """Root endpoint that returns basic API information."""
+    return {
+        "message": "API de Transcripción en Tiempo Real con FastAPI y Deepgram. Conéctate vía WebSocket a /ws/transcribe"
+    }
 
 # --- Para Ejecutar Localmente (opcional) ---
 # Se recomienda usar `uvicorn main:app --host 0.0.0.0 --port 8000 --reload`
@@ -332,7 +337,7 @@ app = FastAPI()
 # Configurar CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://tu-frontend.onrender.com", "http://localhost:5173"],
+    allow_origins=["https://rtm-transcriptions-test-1.onrender.com/", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -30,65 +30,78 @@ const App: React.FC = () => {
     console.log('Environment:', import.meta.env.PROD ? 'Production' : 'Development');
     console.log('VITE_BACKEND_URL:', import.meta.env.VITE_BACKEND_URL);
     
+    // Try to fetch the backend status first to check connectivity
+    fetch(`https://${import.meta.env.VITE_BACKEND_URL.replace(/^https?:\/\//, '')}/docs`)
+      .then(response => {
+        console.log('Backend docs endpoint response:', response.status);
+      })
+      .catch(error => {
+        console.error('Error checking backend status:', error);
+      });
+    
     // Modificar la URL del WebSocket para incluir la ruta correcta
-    const wsUrl = import.meta.env.PROD 
-      ? `wss://${import.meta.env.VITE_BACKEND_URL.replace(/^https?:\/\//, '')}/ws/transcribe` 
-      : 'ws://localhost:8000/ws/transcribe';
+    const wsUrl = `wss://${import.meta.env.VITE_BACKEND_URL.replace(/^https?:\/\//, '')}/ws/transcribe`;
     
     console.log('Connecting to WebSocket URL:', wsUrl);
-    socketRef.current = new WebSocket(wsUrl);
     
-    socketRef.current.onopen = () => {
-      console.log('WebSocket Connected');
-      setConnectionStatus('connected');
-    };
+    try {
+      socketRef.current = new WebSocket(wsUrl);
+      
+      socketRef.current.onopen = () => {
+        console.log('WebSocket Connected');
+        setConnectionStatus('connected');
+      };
 
-    // Fix: Add null check for socketRef.current
-    if (socketRef.current) {
-      socketRef.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          // Si es un mensaje de transcripción
-          if (data.transcript !== undefined) {
-            if (data.is_final) {
-              // Añadir al transcript final
-              setTranscript(prev => prev + data.transcript + ' ');
-              setInterimTranscript(''); // Limpiar el interim
-            } else {
-              // Actualizar el transcript provisional
-              setInterimTranscript(data.transcript);
+      // Fix: Add null check for socketRef.current
+      if (socketRef.current) {
+        socketRef.current.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            
+            // Si es un mensaje de transcripción
+            if (data.transcript !== undefined) {
+              if (data.is_final) {
+                // Añadir al transcript final
+                setTranscript(prev => prev + data.transcript + ' ');
+                setInterimTranscript(''); // Limpiar el interim
+              } else {
+                // Actualizar el transcript provisional
+                setInterimTranscript(data.transcript);
+              }
             }
+            
+            // Si es un mensaje de análisis completado
+            if (data.analysis_complete) {
+              setAnalysis(data.analysis);
+              setIsAnalyzing(false);
+            }
+            
+            // Si es un mensaje de error
+            if (data.error) {
+              console.error('Error from server:', data.error);
+              alert(`Error: ${data.error}`);
+            }
+          } catch (e) {
+            console.error('Error parsing message from server:', e, event.data);
           }
-          
-          // Si es un mensaje de análisis completado
-          if (data.analysis_complete) {
-            setAnalysis(data.analysis);
-            setIsAnalyzing(false);
-          }
-          
-          // Si es un mensaje de error
-          if (data.error) {
-            console.error('Error from server:', data.error);
-            alert(`Error: ${data.error}`);
-          }
-        } catch (e) {
-          console.error('Error parsing message from server:', e, event.data);
-        }
-      };
+        };
 
-      socketRef.current.onerror = (error) => {
-        console.error('WebSocket Error:', error);
-        setConnectionStatus('error');
-      };
+        socketRef.current.onerror = (error) => {
+          console.error('WebSocket Error:', error);
+          setConnectionStatus('error');
+        };
 
-      socketRef.current.onclose = (event) => {
-        console.log('WebSocket Disconnected:', event.reason, event.code);
-        if (isRecording) {
-          setConnectionStatus('disconnected');
-        }
-        socketRef.current = null;
-      };
+        socketRef.current.onclose = (event) => {
+          console.log('WebSocket Disconnected:', event.reason, event.code);
+          if (isRecording) {
+            setConnectionStatus('disconnected');
+          }
+          socketRef.current = null;
+        };
+      }
+    } catch (error) {
+      console.error('Error creating WebSocket connection:', error);
+      setConnectionStatus('error');
     }
   }, [isRecording]);
 
