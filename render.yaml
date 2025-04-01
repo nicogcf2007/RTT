@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: rtm-transcriptions-backend
+    runtime: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.9
+
+  - type: web
+    name: rtm-transcriptions-frontend
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+      - key: VITE_BACKEND_URL
+        fromService:
+          name: rtm-transcriptions-backend
+          type: web
+          property: host

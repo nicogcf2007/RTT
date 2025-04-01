@@ -24,11 +24,17 @@ const App: React.FC = () => {
 
     setConnectionStatus('connecting');
     console.log('Attempting to connect WebSocket...');
-    socketRef.current = new WebSocket(WS_URL);
-
-    socketRef.current.onopen = () => {
-      console.log('WebSocket Connected');
-      setConnectionStatus('connected');
+    const connectWebSocket = () => {
+      // Usar variable de entorno o detectar producción vs desarrollo
+      const wsUrl = import.meta.env.PROD 
+        ? `wss://${import.meta.env.VITE_BACKEND_URL}/ws` 
+        : 'ws://localhost:8000/ws';
+        
+      socketRef.current = new WebSocket(wsUrl);
+      socketRef.current.onopen = () => {
+        console.log('WebSocket Connected');
+        setConnectionStatus('connected');
+      };
     };
 
     socketRef.current.onmessage = (event) => {
