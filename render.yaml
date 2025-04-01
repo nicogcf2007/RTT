@@ -2,7 +2,6 @@ services:
   - type: web
     name: rtm-transcriptions-backend
     runtime: python
-    plan: free
     buildCommand: pip install -r backend/requirements.txt
     startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
@@ -16,7 +15,6 @@ services:
   - type: web
     name: rtm-transcriptions-frontend
     runtime: static
-    plan: free
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: ./frontend/dist
     envVars:
