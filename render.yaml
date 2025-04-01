@@ -13,8 +13,9 @@ services:
       - key: PYTHON_VERSION
         value: 3.9
 
-  - type: static
+  - type: web
     name: rtm-transcriptions-frontend
+    runtime: static
     plan: free
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: ./frontend/dist
