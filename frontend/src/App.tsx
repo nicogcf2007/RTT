@@ -26,13 +26,14 @@ const App: React.FC = () => {
     setConnectionStatus('connecting');
     console.log('Attempting to connect WebSocket...');
     
-    // Fix: Remove nested function with the same name and move its code here
-    // Usar variable de entorno o detectar producción vs desarrollo
+    // Fix: Corregir la construcción de la URL del WebSocket
     const wsUrl = import.meta.env.PROD 
-      ? `wss://${import.meta.env.VITE_BACKEND_URL}/ws` 
+      ? `wss://${import.meta.env.VITE_BACKEND_URL.replace(/^https?:\/\//, '')}/ws` 
       : 'ws://localhost:8000/ws';
-      
+    
+    console.log('Connecting to WebSocket URL:', wsUrl);
     socketRef.current = new WebSocket(wsUrl);
+    
     socketRef.current.onopen = () => {
       console.log('WebSocket Connected');
       setConnectionStatus('connected');
