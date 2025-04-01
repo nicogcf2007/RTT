@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+websockets
+deepgram-sdk>=3.0 # O la versión más reciente
+python-dotenv
+aiohttp # El SDK de Deepgram a menudo lo usa internamente
+pandas
+openai
