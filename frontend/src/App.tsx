@@ -67,7 +67,7 @@ const App: React.FC = () => {
 
       // Fix: Add null check for socketRef.current
       if (socketRef.current) {
-        socketRef.current.onmessage = (event) => {
+        socketRef.current.onmessage = async (event) => {
           try {
             // Check if it's a text message (JSON)
             if (typeof event.data === 'string') {
@@ -90,6 +90,27 @@ const App: React.FC = () => {
                 setAnalysis(data.analysis);
                 setIsAnalyzing(false);
                 
+                // If file_path is present, create download link
+                if (data.file_path) {
+                  console.log('Received file path:', data.file_path);
+                  
+                  // Create a download link for the file
+                  const fileUrl = `https://${import.meta.env.VITE_BACKEND_URL.replace(/^https?:\/\//, '')}/download?path=${encodeURIComponent(data.file_path)}`;
+                  console.log('Download URL:', fileUrl);
+                  
+                  // Create and trigger download
+                  const a = document.createElement('a');
+                  a.href = fileUrl;
+                  a.download = data.file_path.split('/').pop() || 'analysis.xlsx';
+                  document.body.appendChild(a);
+                  a.click();
+                  
+                  // Clean up
+                  setTimeout(() => {
+                    document.body.removeChild(a);
+                  }, 100);
+                }
+                
                 // If file_data is present, prepare for file downloads
                 if (data.file_data) {
                   console.log('Received file metadata:', data.file_data);
@@ -106,40 +127,65 @@ const App: React.FC = () => {
             } 
             // Handle binary data (file downloads)
             else if (event.data instanceof Blob) {
-              console.log('Received binary data for file download');
-              if (window.fileMetadata && window.fileMetadata !== null) {
-                // Get the next format to download
-                const formats = Object.keys(window.fileMetadata);
-                if (formats.length > 0) {
-                  const format = formats[0];
-                  const metadata = window.fileMetadata[format];
-                  
-                  // Create download link
-                  const blob = new Blob([event.data], { type: metadata.content_type });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = metadata.filename;
-                  document.body.appendChild(a);
-                  a.click();
-                  
-                  // Clean up
-                  setTimeout(() => {
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    
-                    // Remove this format from pending downloads
-                    if (window.fileMetadata) {
-                      delete window.fileMetadata[format];
-                      
-                      // If no more formats, clean up completely
-                      if (Object.keys(window.fileMetadata).length === 0) {
-                        window.fileMetadata = null;
-                      }
+              console.log('Received binary data for file download', event.data.size, 'bytes');
+              
+              // Debug the blob content type
+              console.log('Blob type:', event.data.type);
+              
+              try {
+                // First, try to parse the first few bytes to see if it's actually JSON
+                const firstChunk = await event.data.slice(0, 100).text();
+                if (firstChunk.trim().startsWith('{')) {
+                  // It's probably JSON, not a binary file
+                  const fullText = await event.data.text();
+                  console.log('Received JSON in binary format:', fullText.substring(0, 200) + '...');
+                  try {
+                    const jsonData = JSON.parse(fullText);
+                    if (jsonData.error) {
+                      console.error('Error from server:', jsonData.error);
+                      alert(`Error: ${jsonData.error}`);
                     }
-                  }, 100);
+                  } catch (e) {
+                    console.error('Failed to parse JSON from blob:', e);
+                  }
+                  return;
                 }
+              } catch (e) {
+                console.log('Not JSON data, proceeding with binary download');
               }
+              
+              // Try to determine file type from the blob
+              let fileExtension = 'bin';
+              let contentType = event.data.type || 'application/octet-stream';
+              
+              if (contentType.includes('excel') || contentType.includes('spreadsheetml')) {
+                fileExtension = 'xlsx';
+              } else if (contentType.includes('pdf')) {
+                fileExtension = 'pdf';
+              } else if (contentType.includes('word') || contentType.includes('document')) {
+                fileExtension = 'docx';
+              }
+              
+              // Create a filename based on timestamp and detected type
+              const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+              const filename = `analysis_${timestamp}.${fileExtension}`;
+              
+              console.log(`Downloading file as ${filename} with content type ${contentType}`);
+              
+              // Create download link
+              const blob = new Blob([event.data], { type: contentType });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = filename;
+              document.body.appendChild(a);
+              a.click();
+              
+              // Clean up
+              setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+              }, 100);
             }
           } catch (e) {
             console.error('Error parsing message from server:', e, event.data);
@@ -272,7 +318,7 @@ const App: React.FC = () => {
     }
   };
 
-  // Función para solicitar análisis - Updated to include export formats
+  // Función para solicitar análisis
   const requestAnalysis = () => {
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       setIsAnalyzing(true);
@@ -285,11 +331,25 @@ const App: React.FC = () => {
       
       console.log("Selected export formats:", selectedFormats);
       
+      // Make sure at least one format is selected
+      if (selectedFormats.length === 0) {
+        alert('Por favor selecciona al menos un formato de exportación');
+        setIsAnalyzing(false);
+        return;
+      }
+      
+      // Create a unique session ID for this analysis
+      const sessionId = `session_${Date.now()}`;
+      
       socketRef.current.send(JSON.stringify({
         command: 'stop_and_analyze',
-        transcript: transcript.trim(), // Send the transcript directly
-        export_formats: selectedFormats
+        transcript: transcript.trim(),
+        export_formats: selectedFormats,
+        session_id: sessionId,
+        download_mode: 'binary' // Explicitly request binary download
       }));
+      
+      console.log(`Sent analysis request with session ID: ${sessionId}`);
     } else {
       console.error("WebSocket no está abierto:", socketRef.current ? socketRef.current.readyState : "null");
       
@@ -448,7 +508,7 @@ const App: React.FC = () => {
       {/* Sección de análisis */}
       {analysis && (
         <div className="p-6 w-full max-w-2xl bg-white rounded-lg shadow-md">
-          <h2 className="mb-3 text-xl font-semibold text-blue-600">Análisis de la Transcripción:</h2>
+          <h2 className="mb-3 text-xl font-semibold text-blue-500">Análisis de la Transcripción:</h2>
           
           <div className="space-y-4">
             <div>

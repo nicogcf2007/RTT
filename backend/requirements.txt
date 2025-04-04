@@ -6,3 +6,4 @@ python-dotenv
 aiohttp # El SDK de Deepgram a menudo lo usa internamente
 pandas
 openai
+python-docx==0.8.11
