@@ -154,16 +154,39 @@ const App: React.FC = () => {
                 console.log('Not JSON data, proceeding with binary download');
               }
               
-              // Try to determine file type from the blob
+              // Get the format from the selected formats
+              const selectedFormats = Object.entries(exportFormats)
+                .filter(([_, selected]) => selected)
+                .map(([format]) => format);
+              
+              // Map format to file extension and MIME type
+              const formatMap = {
+                excel: { ext: 'xlsx', type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+                pdf: { ext: 'pdf', type: 'application/pdf' },
+                word: { ext: 'docx', type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }
+              };
+              
+              // Try to determine file type from the blob or use the first selected format
               let fileExtension = 'bin';
               let contentType = event.data.type || 'application/octet-stream';
               
-              if (contentType.includes('excel') || contentType.includes('spreadsheetml')) {
-                fileExtension = 'xlsx';
-              } else if (contentType.includes('pdf')) {
-                fileExtension = 'pdf';
-              } else if (contentType.includes('word') || contentType.includes('document')) {
-                fileExtension = 'docx';
+              // If the content type is generic, use the first selected format
+              if (contentType === 'application/octet-stream' && selectedFormats.length > 0) {
+                const format = selectedFormats[0];
+                if (formatMap[format as keyof typeof formatMap]) {
+                  fileExtension = formatMap[format as keyof typeof formatMap].ext;
+                  contentType = formatMap[format as keyof typeof formatMap].type;
+                  console.log(`Using format from selection: ${format} -> ${fileExtension}`);
+                }
+              } else {
+                // Try to determine from content type
+                if (contentType.includes('excel') || contentType.includes('spreadsheetml')) {
+                  fileExtension = 'xlsx';
+                } else if (contentType.includes('pdf')) {
+                  fileExtension = 'pdf';
+                } else if (contentType.includes('word') || contentType.includes('document')) {
+                  fileExtension = 'docx';
+                }
               }
               
               // Create a filename based on timestamp and detected type
@@ -172,7 +195,7 @@ const App: React.FC = () => {
               
               console.log(`Downloading file as ${filename} with content type ${contentType}`);
               
-              // Create download link
+              // Create download link with the correct content type
               const blob = new Blob([event.data], { type: contentType });
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
@@ -341,10 +364,28 @@ const App: React.FC = () => {
       // Create a unique session ID for this analysis
       const sessionId = `session_${Date.now()}`;
       
+      // Map format to expected MIME types for the server
+      const formatMimeTypes = {
+        excel: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        pdf: 'application/pdf',
+        word: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      };
+      
+      // Create format details object with proper typing
+      const formatDetails: Record<string, { mime_type: string }> = {};
+      selectedFormats.forEach(format => {
+        if (format in formatMimeTypes) {
+          formatDetails[format] = {
+            mime_type: formatMimeTypes[format as keyof typeof formatMimeTypes]
+          };
+        }
+      });
+      
       socketRef.current.send(JSON.stringify({
         command: 'stop_and_analyze',
         transcript: transcript.trim(),
         export_formats: selectedFormats,
+        format_details: formatDetails,
         session_id: sessionId,
         download_mode: 'binary' // Explicitly request binary download
       }));
