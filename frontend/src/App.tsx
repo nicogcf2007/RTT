@@ -8,6 +8,13 @@ const App: React.FC = () => {
   const [analysis, setAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  const [selectedModel, setSelectedModel] = useState('nova-2');
+  const [exportFormats, setExportFormats] = useState({
+    excel: true,
+    pdf: false,
+    word: false
+  });
+  
   const socketRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -266,10 +273,10 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-      <h1 className="text-3xl font-bold mb-6 text-blue-600">Transcripción en Tiempo Real</h1>
+    <div className="flex flex-col justify-center items-center p-4 min-h-screen bg-gray-100">
+      <h1 className="mb-6 text-3xl font-bold text-blue-600">Transcripción en Tiempo Real</h1>
 
-      <div className="mb-4 flex space-x-4">
+      <div className="flex mb-4 space-x-4">
         <button
           onClick={isRecording ? stopRecording : startRecording}
           className={`px-6 py-3 rounded-lg font-semibold text-white transition-colors duration-200
@@ -297,12 +304,12 @@ const App: React.FC = () => {
         }`}>{connectionStatus}</span>
       </div>
 
-      <div className="w-full max-w-2xl bg-white rounded-lg shadow-md p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-3 text-gray-700">Transcripción:</h2>
+      <div className="p-6 mb-6 w-full max-w-2xl bg-white rounded-lg shadow-md">
+        <h2 className="mb-3 text-xl font-semibold text-gray-700">Transcripción:</h2>
         
         {/* Transcripción final */}
         <div
-          className="w-full h-48 p-3 border border-gray-300 rounded-md overflow-auto bg-gray-50 text-gray-800 mb-2"
+          className="overflow-auto p-3 mb-2 w-full h-48 text-gray-800 bg-gray-50 rounded-md border border-gray-300"
         >
           {transcript}
           {/* Mostrar el texto provisional en un color diferente */}
@@ -314,8 +321,8 @@ const App: React.FC = () => {
 
       {/* Sección de análisis */}
       {analysis && (
-        <div className="w-full max-w-2xl bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-3 text-blue-600">Análisis de la Transcripción:</h2>
+        <div className="p-6 w-full max-w-2xl bg-white rounded-lg shadow-md">
+          <h2 className="mb-3 text-xl font-semibold text-blue-600">Análisis de la Transcripción:</h2>
           
           <div className="space-y-4">
             <div>
