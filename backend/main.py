@@ -8,6 +8,7 @@ from datetime import datetime
 import openai
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 
 from deepgram import (
     DeepgramClient,
@@ -41,7 +42,17 @@ config: DeepgramClientOptions = DeepgramClientOptions(
 # Initialize Deepgram Client
 deepgram: DeepgramClient = DeepgramClient(API_KEY, config)
 
+# Initialize FastAPI app - KEEP ONLY THIS INSTANCE
 app = FastAPI()
+
+# Configure CORS - MOVE THIS HERE
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for now
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.websocket("/ws/transcribe")
 async def websocket_endpoint(websocket: WebSocket):
@@ -328,17 +339,3 @@ async def root():
 #     import uvicorn
 #     logger.info("Iniciando servidor Uvicorn...")
 #     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-app = FastAPI()
-
-# Configurar CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://rtm-transcriptions-test-1.onrender.com/", "http://localhost:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
