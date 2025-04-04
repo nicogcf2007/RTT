@@ -7,14 +7,19 @@ const App: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
   const [analysis, setAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  
+  // Add state for model selection and export formats
+  const [selectedModel, setSelectedModel] = useState<string>('nova-2');
+  const [exportFormats, setExportFormats] = useState({
+    excel: true,
+    pdf: false,
+    word: false
+  });
 
   const socketRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
-
-  // Remove unused WS_URL variable
-  // const WS_URL = 'ws://localhost:8000/ws/transcribe';
 
   // Función para iniciar la conexión WebSocket
   const connectWebSocket = useCallback(() => {
@@ -50,36 +55,91 @@ const App: React.FC = () => {
       socketRef.current.onopen = () => {
         console.log('WebSocket Connected');
         setConnectionStatus('connected');
+        
+        // Send model configuration when connection is established
+        if (socketRef.current) {
+          socketRef.current.send(JSON.stringify({
+            model: selectedModel
+          }));
+          console.log(`Sent model configuration: ${selectedModel}`);
+        }
       };
 
       // Fix: Add null check for socketRef.current
       if (socketRef.current) {
         socketRef.current.onmessage = (event) => {
           try {
-            const data = JSON.parse(event.data);
-            
-            // Si es un mensaje de transcripción
-            if (data.transcript !== undefined) {
-              if (data.is_final) {
-                // Añadir al transcript final
-                setTranscript(prev => prev + data.transcript + ' ');
-                setInterimTranscript(''); // Limpiar el interim
-              } else {
-                // Actualizar el transcript provisional
-                setInterimTranscript(data.transcript);
+            // Check if it's a text message (JSON)
+            if (typeof event.data === 'string') {
+              const data = JSON.parse(event.data);
+              
+              // Si es un mensaje de transcripción
+              if (data.transcript !== undefined) {
+                if (data.is_final) {
+                  // Añadir al transcript final
+                  setTranscript(prev => prev + data.transcript + ' ');
+                  setInterimTranscript(''); // Limpiar el interim
+                } else {
+                  // Actualizar el transcript provisional
+                  setInterimTranscript(data.transcript);
+                }
               }
-            }
-            
-            // Si es un mensaje de análisis completado
-            if (data.analysis_complete) {
-              setAnalysis(data.analysis);
-              setIsAnalyzing(false);
-            }
-            
-            // Si es un mensaje de error
-            if (data.error) {
-              console.error('Error from server:', data.error);
-              alert(`Error: ${data.error}`);
+              
+              // Si es un mensaje de análisis completado
+              if (data.analysis_complete) {
+                setAnalysis(data.analysis);
+                setIsAnalyzing(false);
+                
+                // If file_data is present, prepare for file downloads
+                if (data.file_data) {
+                  console.log('Received file metadata:', data.file_data);
+                  // Store file metadata for later download when binary data arrives
+                  window.fileMetadata = data.file_data;
+                }
+              }
+              
+              // Si es un mensaje de error
+              if (data.error) {
+                console.error('Error from server:', data.error);
+                alert(`Error: ${data.error}`);
+              }
+            } 
+            // Handle binary data (file downloads)
+            else if (event.data instanceof Blob) {
+              console.log('Received binary data for file download');
+              if (window.fileMetadata && window.fileMetadata !== null) {
+                // Get the next format to download
+                const formats = Object.keys(window.fileMetadata);
+                if (formats.length > 0) {
+                  const format = formats[0];
+                  const metadata = window.fileMetadata[format];
+                  
+                  // Create download link
+                  const blob = new Blob([event.data], { type: metadata.content_type });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = metadata.filename;
+                  document.body.appendChild(a);
+                  a.click();
+                  
+                  // Clean up
+                  setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    // Remove this format from pending downloads
+                    if (window.fileMetadata) {
+                      delete window.fileMetadata[format];
+                      
+                      // If no more formats, clean up completely
+                      if (Object.keys(window.fileMetadata).length === 0) {
+                        window.fileMetadata = null;
+                      }
+                    }
+                  }, 100);
+                }
+              }
             }
           } catch (e) {
             console.error('Error parsing message from server:', e, event.data);
@@ -103,7 +163,7 @@ const App: React.FC = () => {
       console.error('Error creating WebSocket connection:', error);
       setConnectionStatus('error');
     }
-  }, [isRecording]);
+  }, [isRecording, selectedModel]); // Add selectedModel to dependencies
 
   // Función para iniciar la grabación
   const startRecording = async () => {
@@ -212,14 +272,23 @@ const App: React.FC = () => {
     }
   };
 
-  // Función para solicitar análisis
+  // Función para solicitar análisis - Updated to include export formats
   const requestAnalysis = () => {
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       setIsAnalyzing(true);
       console.log("Enviando comando de análisis al servidor...");
+      
+      // Get selected export formats as an array
+      const selectedFormats = Object.entries(exportFormats)
+        .filter(([_, selected]) => selected)
+        .map(([format]) => format);
+      
+      console.log("Selected export formats:", selectedFormats);
+      
       socketRef.current.send(JSON.stringify({
         command: 'stop_and_analyze',
-        transcript: transcript.trim() // Send the transcript directly
+        transcript: transcript.trim(), // Send the transcript directly
+        export_formats: selectedFormats
       }));
     } else {
       console.error("WebSocket no está abierto:", socketRef.current ? socketRef.current.readyState : "null");
@@ -234,9 +303,16 @@ const App: React.FC = () => {
           if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
             clearInterval(checkAndSend);
             console.log("WebSocket reconectado, enviando comando de análisis...");
+            
+            // Get selected export formats as an array
+            const selectedFormats = Object.entries(exportFormats)
+              .filter(([_, selected]) => selected)
+              .map(([format]) => format);
+            
             socketRef.current.send(JSON.stringify({
               command: 'stop_and_analyze',
-              transcript: transcript.trim() // Send the transcript directly
+              transcript: transcript.trim(), // Send the transcript directly
+              export_formats: selectedFormats
             }));
             setIsAnalyzing(true);
           }
@@ -269,6 +345,24 @@ const App: React.FC = () => {
     <div className="flex flex-col justify-center items-center p-4 min-h-screen bg-gray-100">
       <h1 className="mb-6 text-3xl font-bold text-blue-600">Transcripción en Tiempo Real</h1>
 
+      {/* Model selection dropdown */}
+      <div className="mb-4 w-full max-w-2xl">
+        <label className="block mb-1 text-sm font-medium text-gray-700">
+          Modelo de Deepgram:
+        </label>
+        <select
+          className="p-2 w-full bg-white rounded-md border border-gray-300 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          value={selectedModel}
+          onChange={(e) => setSelectedModel(e.target.value)}
+          disabled={isRecording}
+        >
+          <option value="nova-2">Nova-2 (Conversación 2 personas)</option>
+          <option value="nova-2-general">Nova-2-General</option>
+          <option value="nova-2-meeting">Nova-2-Meeting (Reuniones)</option>
+          <option value="nova-2-phonecall">Nova-2-Phonecall (Llamadas)</option>
+        </select>
+      </div>
+
       <div className="flex mb-4 space-x-4">
         <button
           onClick={isRecording ? stopRecording : startRecording}
@@ -287,6 +381,45 @@ const App: React.FC = () => {
         >
           {isAnalyzing ? 'Analizando...' : 'Analizar Transcripción'}
         </button>
+      </div>
+
+      {/* Export format selection */}
+      <div className="p-4 mb-4 w-full max-w-2xl bg-white rounded-lg shadow-sm">
+        <label className="block mb-2 text-sm font-medium text-gray-700">
+          Formatos de exportación:
+        </label>
+        <div className="flex flex-wrap gap-4">
+          <label className="inline-flex items-center">
+            <input
+              type="checkbox"
+              className="w-5 h-5 text-blue-600 form-checkbox"
+              checked={exportFormats.excel}
+              onChange={() => setExportFormats({...exportFormats, excel: !exportFormats.excel})}
+              disabled={isAnalyzing}
+            />
+            <span className="ml-2 text-gray-700">Excel</span>
+          </label>
+          <label className="inline-flex items-center">
+            <input
+              type="checkbox"
+              className="w-5 h-5 text-blue-600 form-checkbox"
+              checked={exportFormats.pdf}
+              onChange={() => setExportFormats({...exportFormats, pdf: !exportFormats.pdf})}
+              disabled={isAnalyzing}
+            />
+            <span className="ml-2 text-gray-700">PDF</span>
+          </label>
+          <label className="inline-flex items-center">
+            <input
+              type="checkbox"
+              className="w-5 h-5 text-blue-600 form-checkbox"
+              checked={exportFormats.word}
+              onChange={() => setExportFormats({...exportFormats, word: !exportFormats.word})}
+              disabled={isAnalyzing}
+            />
+            <span className="ml-2 text-gray-700">Word</span>
+          </label>
+        </div>
       </div>
 
       <div className="mb-4 text-sm text-gray-600">
