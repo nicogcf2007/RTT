@@ -8,13 +8,6 @@ const App: React.FC = () => {
   const [analysis, setAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const [selectedModel, setSelectedModel] = useState('nova-2');
-  const [exportFormats, setExportFormats] = useState({
-    excel: true,
-    pdf: false,
-    word: false
-  });
-  
   const socketRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
