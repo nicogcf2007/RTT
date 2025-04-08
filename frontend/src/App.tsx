@@ -154,11 +154,6 @@ const App: React.FC = () => {
                 console.log('Not JSON data, proceeding with binary download');
               }
               
-              // Get the format from the selected formats
-              const selectedFormats = Object.entries(exportFormats)
-                .filter(([_, selected]) => selected)
-                .map(([format]) => format);
-              
               // Map format to file extension and MIME type
               const formatMap = {
                 excel: { ext: 'xlsx', type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
@@ -166,26 +161,69 @@ const App: React.FC = () => {
                 word: { ext: 'docx', type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }
               };
               
-              // Try to determine file type from the blob or use the first selected format
+              // Variables for file type detection
               let fileExtension = 'bin';
               let contentType = event.data.type || 'application/octet-stream';
+              let formatKey = '';
               
-              // If the content type is generic, use the first selected format
-              if (contentType === 'application/octet-stream' && selectedFormats.length > 0) {
-                const format = selectedFormats[0];
-                if (formatMap[format as keyof typeof formatMap]) {
-                  fileExtension = formatMap[format as keyof typeof formatMap].ext;
-                  contentType = formatMap[format as keyof typeof formatMap].type;
-                  console.log(`Using format from selection: ${format} -> ${fileExtension}`);
+              // Check if we have file metadata from a previous message
+              if (window.fileMetadata) {
+                // Get the keys of fileMetadata to know which formats are available
+                const availableFormats = Object.keys(window.fileMetadata);
+                console.log('Available formats from metadata:', availableFormats);
+                
+                // Use a static counter to track which file we're processing
+                if (!window.downloadCounter) window.downloadCounter = 0;
+                
+                // Get the format for the current file based on counter
+                if (window.downloadCounter < availableFormats.length) {
+                  formatKey = availableFormats[window.downloadCounter];
+                  console.log(`Processing file ${window.downloadCounter + 1} of ${availableFormats.length}, format: ${formatKey}`);
+                  
+                  // Get file details from metadata
+                  const fileDetails = window.fileMetadata[formatKey];
+                  if (fileDetails) {
+                    fileExtension = fileDetails.filename.split('.').pop() || 'bin';
+                    contentType = fileDetails.content_type;
+                    console.log(`Using metadata for format: ${formatKey}, extension: ${fileExtension}, type: ${contentType}`);
+                  }
+                  
+                  // Increment counter for next file
+                  window.downloadCounter++;
+                  
+                  // Reset counter if we've processed all files
+                  if (window.downloadCounter >= availableFormats.length) {
+                    window.downloadCounter = 0;
+                    window.fileMetadata = null;
+                  }
                 }
               } else {
-                // Try to determine from content type
-                if (contentType.includes('excel') || contentType.includes('spreadsheetml')) {
-                  fileExtension = 'xlsx';
-                } else if (contentType.includes('pdf')) {
-                  fileExtension = 'pdf';
-                } else if (contentType.includes('word') || contentType.includes('document')) {
-                  fileExtension = 'docx';
+                // Fallback to the old method if no metadata is available
+                // Get the format from the selected formats
+                const selectedFormats = Object.entries(exportFormats)
+                  .filter(([_, selected]) => selected)
+                  .map(([format]) => format);
+                
+                // If the content type is generic, use the first selected format
+                if (contentType === 'application/octet-stream' && selectedFormats.length > 0) {
+                  formatKey = selectedFormats[0];
+                  if (formatMap[formatKey as keyof typeof formatMap]) {
+                    fileExtension = formatMap[formatKey as keyof typeof formatMap].ext;
+                    contentType = formatMap[formatKey as keyof typeof formatMap].type;
+                    console.log(`Using format from selection: ${formatKey} -> ${fileExtension}`);
+                  }
+                } else {
+                  // Try to determine from content type
+                  if (contentType.includes('excel') || contentType.includes('spreadsheetml')) {
+                    fileExtension = 'xlsx';
+                    formatKey = 'excel';
+                  } else if (contentType.includes('pdf')) {
+                    fileExtension = 'pdf';
+                    formatKey = 'pdf';
+                  } else if (contentType.includes('word') || contentType.includes('document')) {
+                    fileExtension = 'docx';
+                    formatKey = 'word';
+                  }
                 }
               }
               

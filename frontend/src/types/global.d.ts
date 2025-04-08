@@ -1,14 +1,5 @@
-interface FileMetadata {
-  [format: string]: {
-    filename: string;
-    content_type: string;
-  };
+// Declare global window properties for file download handling
+interface Window {
+  fileMetadata: Record<string, { filename: string; content_type: string }> | null;
+  downloadCounter: number;
 }
-
-declare global {
-  interface Window {
-    fileMetadata: FileMetadata | null;
-  }
-}
-
-export {};
