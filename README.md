@@ -1,10 +1,10 @@
-# RTM Transcriptions
+# RTT Transcriptions
 
 Sistema de transcripción y análisis de audio en tiempo real con información basada en IA.
 
 ## Descripción general
 
-RTM Transcriptions es una aplicación web que proporciona transcripción y análisis de audio en tiempo real. Captura audio desde tu micrófono, lo transcribe utilizando la API de reconocimiento de voz de Deepgram, y puede analizar el contenido utilizando los modelos de lenguaje de OpenAI para proporcionar resúmenes, puntos clave, análisis de sentimiento y recomendaciones.
+RTT Transcriptions es una aplicación web que proporciona transcripción y análisis de audio en tiempo real. Captura audio desde tu micrófono, lo transcribe utilizando la API de reconocimiento de voz de Deepgram, y puede analizar el contenido utilizando los modelos de lenguaje de OpenAI para proporcionar resúmenes, puntos clave, análisis de sentimiento y recomendaciones.
 
 ## Características
 
